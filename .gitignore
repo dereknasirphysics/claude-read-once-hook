@@ -1,0 +1,6 @@
+.DS_Store
+Thumbs.db
+*.log
+
+# Personal task notes - not part of the published project
+Setup.Markdown
