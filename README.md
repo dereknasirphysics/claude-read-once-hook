@@ -14,6 +14,7 @@ Claude Code will sometimes re-read a file it already has in context (e.g. after 
 - First read of a path: the path is appended to the cache, the hook exits `0` (allow).
 - Repeat read of the same path: the hook exits `2` (block) and writes an explanation to stderr, which Claude Code surfaces back to the model as the reason the call was blocked.
 - Any tool other than `Read` is ignored (exit `0`, no-op).
+- The script is also registered on the `PreCompact` event (see [Notes](#notes) below), so it can clear its own cache when a `/compact` happens.
 
 The script is pure Bash — no `jq` or other JSON tooling required.
 
@@ -27,7 +28,7 @@ The script is pure Bash — no `jq` or other JSON tooling required.
    chmod +x ~/.claude/hooks/read-once.sh
    ```
 
-2. Add the hook to `~/.claude/settings.json`. If you already have a `hooks` key, merge this into it rather than replacing the file — see [`settings.snippet.json`](settings.snippet.json) for the exact block to add:
+2. Add the hook to `~/.claude/settings.json`. If you already have a `hooks` key, merge this into it rather than replacing the file — see [`settings.snippet.json`](settings.snippet.json) for the exact block to add. Note it needs **two** entries: one under `PreToolUse` (matcher `Read`) and one under `PreCompact` (no matcher needed) — see [Notes](#notes) for why:
 
    ```json
    {
@@ -35,6 +36,16 @@ The script is pure Bash — no `jq` or other JSON tooling required.
        "PreToolUse": [
          {
            "matcher": "Read",
+           "hooks": [
+             {
+               "type": "command",
+               "command": "~/.claude/hooks/read-once.sh"
+             }
+           ]
+         }
+       ],
+       "PreCompact": [
+         {
            "hooks": [
              {
                "type": "command",
@@ -76,6 +87,7 @@ The script checks for this file on every call, so no restart is needed either wa
 
 - The cache is per session (`session_id`) and lives under `/tmp`, so it's automatically scoped and doesn't persist across machine reboots.
 - If you rename or restructure a file mid-session, its cache entry is keyed on the literal path, so a legitimately different path is never blocked.
+- `session_id` stays the same across `/compact`, but the transcript gets rewritten/summarized — a file recorded as "already read" may no longer actually be present verbatim afterward. To handle this, `read-once.sh` is also registered on the `PreCompact` event (fires for both manual `/compact` and automatic compaction); when it sees a `PreCompact` payload it just deletes that session's cache file and exits, so reads after a compact aren't wrongly blocked.
 
 ## License
 

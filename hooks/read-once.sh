@@ -34,6 +34,17 @@ extract_json_string() {
 tool_name=$(extract_json_string "tool_name")
 file_path=$(extract_json_string "file_path")
 session_id=$(extract_json_string "session_id")
+hook_event_name=$(extract_json_string "hook_event_name")
+
+# PreCompact: session_id stays the same across a compact, but the
+# transcript itself gets rewritten/summarized, so a file recorded here as
+# "already read" may no longer actually be present verbatim afterward.
+# Clear this session's cache so reads after a compact aren't wrongly
+# blocked. Fires for both manual (/compact) and automatic compaction.
+if [[ "$hook_event_name" == "PreCompact" ]]; then
+  rm -f "/tmp/claude_read_cache_${session_id:-default}"
+  exit 0
+fi
 
 # Only act on the Read tool
 if [[ "$tool_name" != "Read" ]]; then
